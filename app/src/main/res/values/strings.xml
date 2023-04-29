@@ -1,3 +1,11 @@
 <resources>
     <string name="app_name">FroggyMorning03</string>
+    <string name="monday">Пн</string>
+    <string name="tuesday">Вт</string>
+    <string name="wednesday">Ср</string>
+    <string name="thursday">Чт</string>
+    <string name="friday">Пт</string>
+    <string name="saturday">Сб</string>
+    <string name="sunday">Вс</string>
+    <string name="set_alarm">Установить будильник</string>
 </resources>
