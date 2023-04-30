@@ -14,6 +14,11 @@ import android.widget.TimePicker
 import android.widget.ToggleButton
 import androidx.appcompat.app.AppCompatActivity
 import java.util.Calendar
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var timePicker: TimePicker
@@ -22,6 +27,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var daysOfWeekButtons: List<ToggleButton>
     private var alarmManager: AlarmManager? = null
     private var pendingIntent: PendingIntent? = null
+    companion object {
+        private const val REQUEST_SCHEDULE_EXACT_ALARM_PERMISSION = 1
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,6 +68,19 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_SCHEDULE_EXACT_ALARM_PERMISSION && grantResults.isNotEmpty()
+            && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            val calendar = Calendar.getInstance()
+            calendar.set(Calendar.HOUR_OF_DAY, timePicker.hour)
+            calendar.set(Calendar.MINUTE, timePicker.minute)
+            calendar.set(Calendar.SECOND, 0)
+            setAlarm(calendar)
+        }
+    }
+
+
     private fun setAlarm(calendar: Calendar) {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(this, AlarmReceiver::class.java)
@@ -71,12 +92,29 @@ class MainActivity : AppCompatActivity() {
 
         val selectedDays = daysOfWeekButtons.filter { it.isChecked }.map { it.text.toString() }
 
-        alarmManager.setInexactRepeating(
-            AlarmManager.RTC_WAKEUP,
-            calendar.timeInMillis,
-            AlarmManager.INTERVAL_DAY,
-            pendingIntent
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.SCHEDULE_EXACT_ALARM)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.SCHEDULE_EXACT_ALARM),
+                    REQUEST_SCHEDULE_EXACT_ALARM_PERMISSION
+                )
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            }
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
+        }
 
         for (button in daysOfWeekButtons) {
             button.isChecked = false
@@ -87,6 +125,7 @@ class MainActivity : AppCompatActivity() {
 
         startCountdown(calendar.timeInMillis)
     }
+
 
 
     private fun startCountdown(alarmTimeInMillis: Long) {
