@@ -35,6 +35,11 @@ class MainActivity : AppCompatActivity() {
         const val ALARM_REQUEST_CODE = 1
     }
 
+    private fun createPendingIntent(requestCode: Int): PendingIntent {
+        val intent = Intent(this, AlarmReceiver::class.java)
+        return PendingIntent.getBroadcast(this, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -77,18 +82,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun setAlarm(calendar: Calendar) {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, AlarmReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(this, ALARM_REQUEST_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
 
         calendar.set(Calendar.HOUR_OF_DAY, timePicker.hour)
         calendar.set(Calendar.MINUTE, timePicker.minute)
         calendar.set(Calendar.SECOND, 0)
 
         val selectedDays = daysOfWeekButtons.filter { it.isChecked }.map { it.text.toString() }
-
-        // Отменяем предыдущий будильник
-        alarmManager.cancel(pendingIntent)
 
         val alarms = mutableListOf<Long>()
 
@@ -121,10 +120,42 @@ class MainActivity : AppCompatActivity() {
             alarms.add(calendar.timeInMillis)
         }
 
-        // Берем последний установленный будильник
         val lastAlarm = alarms.minOrNull()
 
         lastAlarm?.let {
+            val earlyAlerts = calculateEarlyAlerts(it)
+            var requestCode = ALARM_REQUEST_CODE
+
+            for (earlyAlert in earlyAlerts) {
+                val earlyAlertPendingIntent = createPendingIntent(requestCode++)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.SCHEDULE_EXACT_ALARM)
+                        != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(Manifest.permission.SCHEDULE_EXACT_ALARM),
+                            REQUEST_SCHEDULE_EXACT_ALARM_PERMISSION
+                        )
+                    } else {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            earlyAlert,
+                            earlyAlertPendingIntent
+                        )
+                    }
+                } else {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        earlyAlert,
+                        earlyAlertPendingIntent
+                    )
+                }
+            }
+
+            val mainAlarmPendingIntent = createPendingIntent(requestCode)
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.SCHEDULE_EXACT_ALARM)
                     != PackageManager.PERMISSION_GRANTED
@@ -138,14 +169,14 @@ class MainActivity : AppCompatActivity() {
                     alarmManager.setExactAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         it,
-                        pendingIntent
+                        mainAlarmPendingIntent
                     )
                 }
             } else {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     it,
-                    pendingIntent
+                    mainAlarmPendingIntent
                 )
             }
         }
@@ -157,6 +188,16 @@ class MainActivity : AppCompatActivity() {
         lastAlarm?.let { startCountdown(it) }
     }
 
+
+
+    private fun calculateEarlyAlerts(alarmTimeInMillis: Long, ea: Int = 10, n: Int = 12): List<Long> {
+        val earlyAlerts = mutableListOf<Long>()
+        for (i in 0 until n) {
+            val earlyAlertTimeInMillis = alarmTimeInMillis - ((ea * 60 * 1000) / Math.pow(2.0, i.toDouble())).toLong()
+            earlyAlerts.add(earlyAlertTimeInMillis)
+        }
+        return earlyAlerts
+    }
 
 
     private fun startCountdown(alarmTimeInMillis: Long) {

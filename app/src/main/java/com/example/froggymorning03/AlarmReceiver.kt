@@ -7,7 +7,6 @@ import android.media.MediaPlayer
 import android.os.Handler
 import android.os.Looper
 
-
 class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -22,4 +21,3 @@ class AlarmReceiver : BroadcastReceiver() {
         }, 60000) // 60000 миллисекунд = 1 минута
     }
 }
-
