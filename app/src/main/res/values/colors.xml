@@ -7,4 +7,7 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="default_button_color">#D3D3D3</color> <!-- Серый цвет кнопки -->
+    <color name="pressed_button_color">#696969</color> <!-- Темно-серый цвет кнопки при нажатии -->
+    <color name="unpressed_button_color">#6200EE</color> <!-- Фиолетовый цвет кнопки при снятии выделения -->
 </resources>

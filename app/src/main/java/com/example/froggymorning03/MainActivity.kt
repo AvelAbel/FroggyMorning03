@@ -27,8 +27,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var daysOfWeekButtons: List<ToggleButton>
     private var alarmManager: AlarmManager? = null
     private var pendingIntent: PendingIntent? = null
+    private var countDownTimer: CountDownTimer? = null
+
     companion object {
         private const val REQUEST_SCHEDULE_EXACT_ALARM_PERMISSION = 1
+        const val ALARM_REQUEST_CODE = 1
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,16 +53,6 @@ class MainActivity : AppCompatActivity() {
             findViewById(R.id.saturdayButton),
             findViewById(R.id.sundayButton)
         )
-
-        for (button in daysOfWeekButtons) {
-            button.setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked) {
-                    button.setBackgroundColor(Color.GRAY)
-                } else {
-                    button.setBackgroundColor(Color.TRANSPARENT)
-                }
-            }
-        }
 
         setAlarmButton.setOnClickListener {
             val calendar = Calendar.getInstance()
@@ -84,13 +77,53 @@ class MainActivity : AppCompatActivity() {
     private fun setAlarm(calendar: Calendar) {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(this, AlarmReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val pendingIntent = PendingIntent.getBroadcast(this, ALARM_REQUEST_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         calendar.set(Calendar.HOUR_OF_DAY, timePicker.hour)
         calendar.set(Calendar.MINUTE, timePicker.minute)
         calendar.set(Calendar.SECOND, 0)
 
         val selectedDays = daysOfWeekButtons.filter { it.isChecked }.map { it.text.toString() }
+
+        // Отменяем предыдущий будильник
+        alarmManager.cancel(pendingIntent)
+
+        calendar.set(Calendar.HOUR_OF_DAY, timePicker.hour)
+        calendar.set(Calendar.MINUTE, timePicker.minute)
+        calendar.set(Calendar.SECOND, 0)
+
+        val alarms = mutableListOf<Long>()
+
+        if (selectedDays.isNotEmpty()) {
+            for (day in selectedDays) {
+                val dayOfWeek = when (day) {
+                    "Пн" -> Calendar.MONDAY
+                    "Вт" -> Calendar.TUESDAY
+                    "Ср" -> Calendar.WEDNESDAY
+                    "Чт" -> Calendar.THURSDAY
+                    "Пт" -> Calendar.FRIDAY
+                    "Сб" -> Calendar.SATURDAY
+                    "Вс" -> Calendar.SUNDAY
+                    else -> throw IllegalArgumentException("Unknown day: $day")
+                }
+
+                calendar.set(Calendar.DAY_OF_WEEK, dayOfWeek)
+
+                if (calendar.timeInMillis < System.currentTimeMillis()) {
+                    calendar.add(Calendar.WEEK_OF_YEAR, 1)
+                }
+
+                alarms.add(calendar.timeInMillis)
+            }
+        } else {
+            if (calendar.timeInMillis < System.currentTimeMillis()) {
+                calendar.add(Calendar.DAY_OF_YEAR, 1)
+            }
+            alarms.add(calendar.timeInMillis)
+        }
+
+        // Берем последний установленный будильник
+        val lastAlarm = alarms.last()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.SCHEDULE_EXACT_ALARM)
@@ -104,14 +137,14 @@ class MainActivity : AppCompatActivity() {
             } else {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
+                    lastAlarm,
                     pendingIntent
                 )
             }
         } else {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
-                calendar.timeInMillis,
+                lastAlarm,
                 pendingIntent
             )
         }
@@ -123,12 +156,15 @@ class MainActivity : AppCompatActivity() {
         // Очистите все предыдущие будильники здесь
         // ...
 
-        startCountdown(calendar.timeInMillis)
+        startCountdown(lastAlarm)
     }
 
 
 
+
+
     private fun startCountdown(alarmTimeInMillis: Long) {
+        countDownTimer?.cancel()
         val currentTimeInMillis = System.currentTimeMillis()
         val timeLeftInMillis = alarmTimeInMillis - currentTimeInMillis
 
