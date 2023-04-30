@@ -14,6 +14,14 @@ class AlarmReceiver : BroadcastReceiver() {
         val mediaPlayer = MediaPlayer.create(context, R.raw.notfffy)
         mediaPlayer.start()
 
+        val alarmTime = intent.getLongExtra("alarmTime", 0L)
+
+        // Открываем AlarmNotificationActivity
+        val notificationIntent = Intent(context, AlarmNotificationActivity::class.java)
+        notificationIntent.putExtra("alarmTime", alarmTime)
+        notificationIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        context.startActivity(notificationIntent)
+
         // Остановите воспроизведение звука после некоторого времени (например, 1 минуты)
         Handler(Looper.getMainLooper()).postDelayed({
             mediaPlayer.stop()
